@@ -144,10 +144,7 @@ select
   ELSE '' END AS sheet_s,
   cc.createdat as createdat_dt,
   cj.postToPublic as posttopublic_s,
-  '' as references_ss,
-  case when (fc.item is not null and fc.item <> '')
-              then regexp_replace(regexp_replace(fc.item, '^.*\)''(.*)''$', '\1'),E'[\\t\\n\\r]+', ' ', 'g')
-  end as collectors_verbatim_s
+  '' as references_ss
 
 from collectionobjects_common co
 inner join misc on (co.id = misc.id and misc.lifecyclestate = 'deleted')
@@ -187,6 +184,7 @@ left outer join localNameGroup lng on (hlng.id = lng.id)
 left outer join collectionobjects_common_briefdescriptions cocbd on (co.id = cocbd.id and cocbd.pos = 0)
 where substring(co.objectnumber from '^[A-Z]*') not in ('DHN', 'UCSB', 'UCSC')
       and (cj.posttopublic = 'yes' or cj.posttopublic is Null)
+-- and co.id = '0f16c176-bcaa-4dbc-987e-beeb625168f1'
 -- and h1.name = '338075de-821c-49b3-8f34-969cc666a61e' -- JEPS4687
 -- and h1.name = '32328608-467e-46c3-875c-6de0cece0be0'
 -- and h1.name = '33803cfe-e6a8-4025-bf53-a3814cf4da82'	-- JEPS105623

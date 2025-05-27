@@ -148,10 +148,7 @@ select
   ELSE '' END AS sheet_s,
   cc.createdat as createdat_dt,
   cj.postToPublic as posttopublic_s,
-  '' as references_ss,
-  case when (fc.item is not null and fc.item <> '')
-              then regexp_replace(regexp_replace(fc.item, '^.*\)''(.*)''$', '\1'),E'[\\t\\n\\r]+', ' ', 'g')
-  end as collectors_verbatim_s
+  '' as references_ss
 
 from collectionobjects_common co
 inner join misc on (co.id = misc.id and misc.lifecyclestate <> 'deleted')
@@ -195,7 +192,10 @@ left outer join localNameGroup lng on (hlng.id = lng.id)
 left outer join collectionobjects_common_briefdescriptions cocbd on (co.id = cocbd.id and cocbd.pos = 0)
 where substring(co.objectnumber from '^[A-Z]*') not in ('DHN', 'UCSB', 'UCSC')
       and (cj.posttopublic = 'yes' or cj.posttopublic is Null)
--- and h1.name = '338075de-821c-49b3-8f34-969cc666a61e' -- JEPS4687
--- and h1.name = '32328608-467e-46c3-875c-6de0cece0be0'
--- and h1.name = '33803cfe-e6a8-4025-bf53-a3814cf4da82'	-- JEPS105623
--- and h1.name = '0ad96db0-be78-4a0b-8f99-9fb229222ffb'	-- JEPS70526
+
+-- and h1.name in ('338075de-821c-49b3-8f34-969cc666a61e', '32328608-467e-46c3-875c-6de0cece0be0',
+--	'33803cfe-e6a8-4025-bf53-a3814cf4da82', '0ad96db0-be78-4a0b-8f99-9fb229222ffb')
+-- and h1.name = '338075de-821c-49b3-8f34-969cc666a61e' -- JEPS4687, id = '338075de-821c-49b3-8f34-969cc666a61e'
+-- and h1.name = '32328608-467e-46c3-875c-6de0cece0be0' -- UC9999, id = 'd44365c2-e2e7-4786-afc2-0af430d482dc'
+-- and h1.name = '33803cfe-e6a8-4025-bf53-a3814cf4da82'	-- JEPS105623, id = '939efd96-14ad-40e1-84eb-35c2ad6e5de2'
+-- and h1.name = '0ad96db0-be78-4a0b-8f99-9fb229222ffb'	-- JEPS70526, id = '44301be0-2e24-4770-8b6a-ed65840089f3'
