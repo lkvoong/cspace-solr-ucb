@@ -1,21 +1,29 @@
-select
-  hcc.name as metadata_id,
-  ocg.objectcount as numberofobjects,
-  getdispl(cc.collection) as collection,
-  cc.collection as collection_refname,
+/*
+-- Remove the following unused references to 
+-- collectionobjects_common.id
+-- collectionobjects_common.computedcurrentlocation
+-- updated collectionobjects_common.numberofobjects to objectcountgroup.objectcount
+-- CineFiles does not use objectcountgroup as repeating group, does not use objectcounttype
+*/
+
+SELECT
+  hcc.name AS metadata_id,
+  ocg.objectcount AS numberofobjects,
+  getdispl(cc.collection) AS collection,
+  cc.collection AS collection_refname,
   cc.distinguishingfeatures,
   cc.recordstatus,
   cf.hasbiblio,
-  getdispl(cf.doctype) as doctype,
-  cf.doctype as doctype_refname,
+  getdispl(cf.doctype) AS doctype,
+  cf.doctype AS doctype_refname,
   cf.doctitle,
   cf.hasdistco,
   cf.doctitlearticle,
   cf.hasillust,
   cf.hasprodco,
   cf.hasfilmog,
-  getdispl(cf.source) as source,
-  cf.source as source_refname,
+  getdispl(cf.source) AS source,
+  cf.source AS source_refname,
   cf.pageinfo,
   cf.hascastcr,
   cf.hascostinfo,
@@ -23,15 +31,14 @@ select
   cf.hastechcr,
   cf.docdisplayname,
   cf.hasboxinfo,
-  cc.objectnumber as doc_id,
-  regexp_replace(cc.contentnote, E'[\\t\\n\\r]+', ' ', 'g') as canonical_url
-from collectionobjects_common cc
-join misc mcc on (cc.id = mcc.id and mcc.lifecyclestate != 'deleted')
-join hierarchy hcc on (cc.id = hcc.id)
-left outer join collectionobjects_cinefiles cf on (cc.id = cf.id)
-left outer join hierarchy hocg on (
+  cc.objectnumber AS doc_id,
+  regexp_replace(cc.contentnote, E'[\\t\\n\\r]+', ' ', 'g') AS canonical_url
+FROM collectionobjects_common cc
+JOIN misc mcc ON (cc.id = mcc.id AND mcc.lifecyclestate != 'deleted')
+JOIN hierarchy hcc ON cc.id = hcc.id
+LEFT OUTER JOIN collectionobjects_cinefiles cf ON cc.id = cf.id
+LEFT OUTER JOIN hierarchy hocg ON (
   cc.id = hocg.parentid
-  and hocg.pos = 0
-  and hocg.primarytype = 'objectCountGroup')
-left outer join objectcountgroup ocg on (hocg.id = ocg.id)
-;
+  AND hocg.pos = 0
+  AND hocg.primarytype = 'objectCountGroup')
+LEFT OUTER JOIN objectcountgroup ocg ON (hocg.id = ocg.id);
