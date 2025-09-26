@@ -1,34 +1,44 @@
-select  distinct
-        h1.name as metadata_id,
-        /* coc.id as id2, */
-        coc.numberofobjects,
-        /* coc.computedcurrentlocation, */
-        regexp_replace(coc.collection, '^.*\)''(.*)''$', '\1') AS collection,
-        coc.collection AS collection_refname,
-        coc.distinguishingfeatures,
-        coc.recordstatus,
-        cocf.hasbiblio,
-        regexp_replace(cocf.doctype, '^.*\)''(.*)''$', '\1') AS doctype,
-        cocf.doctype AS doctype_refname,
-        cocf.doctitle,
-        cocf.hasdistco,
-        cocf.doctitlearticle,
-        cocf.hasillust,
-        cocf.hasprodco,
-        cocf.hasfilmog,
-        regexp_replace(cocf.source, '^.*\)''(.*)''$', '\1') AS source,
-        cocf.source as source_refname,
-        cocf.pageinfo,
-        cocf.hascastcr,
-        cocf.hascostinfo,
-        cocf.accesscode,
-        cocf.hastechcr,
-        cocf.docdisplayname,
-        cocf.hasboxinfo,
-        coc.objectnumber AS doc_id,
-        regexp_replace(coc.contentnote, E'[\\t\\n\\r]+', ' ', 'g') AS canonical_url
-from collectionobjects_common coc
-left outer join hierarchy h1 on (h1.id = coc.id)
-left outer join collectionobjects_cinefiles cocf on (coc.id = cocf.id)
-left outer join misc m on (coc.id = m.id and m.lifecyclestate != 'deleted')
-group by h1.id,coc.id,cocf.id;
+/*
+-- Remove the following unused references to 
+-- collectionobjects_common.id
+-- collectionobjects_common.computedcurrentlocation
+-- updated collectionobjects_common.numberofobjects to objectcountgroup.objectcount
+-- CineFiles does not use objectcountgroup as repeating group, does not use objectcounttype
+*/
+
+SELECT
+  hcc.name AS metadata_id,
+  ocg.objectcount AS numberofobjects,
+  getdispl(cc.collection) AS collection,
+  cc.collection AS collection_refname,
+  cc.distinguishingfeatures,
+  cc.recordstatus,
+  cf.hasbiblio,
+  getdispl(cf.doctype) AS doctype,
+  cf.doctype AS doctype_refname,
+  cf.doctitle,
+  cf.hasdistco,
+  cf.doctitlearticle,
+  cf.hasillust,
+  cf.hasprodco,
+  cf.hasfilmog,
+  getdispl(cf.source) AS source,
+  cf.source AS source_refname,
+  cf.pageinfo,
+  cf.hascastcr,
+  cf.hascostinfo,
+  cf.accesscode,
+  cf.hastechcr,
+  cf.docdisplayname,
+  cf.hasboxinfo,
+  cc.objectnumber AS doc_id,
+  regexp_replace(cc.contentnote, E'[\\t\\n\\r]+', ' ', 'g') AS canonical_url
+FROM collectionobjects_common cc
+JOIN misc mcc ON (cc.id = mcc.id AND mcc.lifecyclestate != 'deleted')
+JOIN hierarchy hcc ON cc.id = hcc.id
+LEFT OUTER JOIN collectionobjects_cinefiles cf ON cc.id = cf.id
+LEFT OUTER JOIN hierarchy hocg ON (
+  cc.id = hocg.parentid
+  AND hocg.pos = 0
+  AND hocg.primarytype = 'objectCountGroup')
+LEFT OUTER JOIN objectcountgroup ocg ON (hocg.id = ocg.id);
