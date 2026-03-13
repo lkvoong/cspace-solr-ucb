@@ -1,62 +1,95 @@
-SELECT
-h1.name AS id,
-h2.name AS objectid_s,
-cc.objectnumber AS objectnumber_s,
-mc.description AS description_s,
-b.name AS name_s,
-regexp_replace(mc.creator, '^.*\)''(.*)''$', '\1') AS creator_s,
-mc.creator AS creatorrefname_s,
-mc.blobcsid AS blob_ss,
-mc.copyrightstatement AS copyrightstatement_s,
-mc.identificationnumber AS identificationnumber_s,
-regexp_replace(mc.rightsholder, '^.*\)''(.*)''$', '\1') AS rightsholder_s,
-mc.rightsholder AS rightsholderrefname_s,
-regexp_replace(mc.contributor, '^.*\)''(.*)''$', '\1') AS contributor_s,
-mc.contributor AS contributorrefname_s,
-regexp_replace(regexp_replace(mu.scientifictaxonomy, '^.*\)''(.*)''$', '\1'),E'[\\t\\n\\r]+', ' ', 'g') AS scientifictaxonomy_s,
-regexp_replace(regexp_replace(tnh.family, '^.*\)''(.*)''$', '\1'),E'[\\t\\n\\r]+', ' ', 'g') AS family_s,
-tu.taxonmajorgroup AS majorgroup_s,
-mum.item AS morphologycategoryrefname_s,
-regexp_replace(mum.item, '^.*\)''(.*)''$', '\1') AS morphologycategory_s,
-mu.majorcategory AS majorcategoryrefname_s,
-regexp_replace(mu.majorcategory, '^.*\)''(.*)''$', '\1') AS majorcategory_s,
-mct.item AS typeofmedia_s,
-regexp_replace(lg.fieldlocverbatim,E'[\\t\\n\\r]+', ' ', 'g') as locality_s,
-dg.datedisplaydate as mediadate_s,
-mu.posttopublic AS posttopublic_s,
-mu.handwritten AS handwritten_s,
-mu.collector AS collector_s,
-lg.fieldLocState AS fieldLocState_s,
-lg.fieldLocCountry AS fieldLocCountry_s,
-lg.fieldLocCounty AS fieldLocCounty_s
+----------------------------------------------------------------------------------------------------
+-- ucjepsNewMedia.sql
+-- get public media, taxon, loc data for collection objects (media_ucjeps.posttopublic != 'no')
+-- includes only digital images and slides ('Digital Image','Slide (Photograph)')
+-- excludes deleted media
+-- does not exclude deleted collection objects
+-- removed unreferenced join to collectionobjects_ucjeps
+-- ~ 19K rows
+----------------------------------------------------------------------------------------------------
 
-FROM media_common mc
+select
+  hmc.name as id,
+  hcc.name as objectid_s,
+  cc.objectnumber as objectNumber_s,
+  mc.description as description_s,
+  bc.name as name_s,
+  getdispl(mc.creator) as creator_s,
+  mc.creator as creatorRefname_s,
+  mc.blobcsid as blob_ss,
+  mc.copyrightstatement as copyrightStatement_s,
+  mc.identificationnumber as identificationNumber_s,
+  getdispl(mc.rightsholder) as rightsholder_s,
+  mc.rightsholder as rightsholderRefname_s,
+  getdispl(mc.contributor) as contributor_s,
+  mc.contributor as contributorrefname_s,
+  regexp_replace(getdispl(mu.scientifictaxonomy), E'[\\t\\n\\r]+', '', 'g') as scientificTaxonomy_s,
+  regexp_replace(getdispl(tnh.family), E'[\\t\\n\\r]+', '', 'g') as family_s,
+  tu.taxonmajorgroup as majorGroup_s,
+  mum.item as morphologyCategoryRefname_s,
+  getdispl(mum.item) as morphologyCategory_s,
+  mu.majorcategory as majorCategoryRefname_s,
+  getdispl(mu.majorcategory) as majorCategory_s,
+  mct.item as typeofmedia_s,
+  regexp_replace(lg.fieldlocverbatim, E'[\\t\\n\\r]+', ' ', 'g') as locality_s,
+  dg.datedisplaydate as mediaDate_s,
+  mu.posttopublic as postToPublic_s,
+  mu.handwritten as handwritten_s,
+  mu.collector as collector_s,
+  lg.fieldLocState as fieldLocState_s,
+  lg.fieldLocCountry as fieldLocCountry_s,
+  lg.fieldLocCounty as fieldLocCounty_s
 
-LEFT OUTER JOIN media_ucjeps mu on (mc.id=mu.id and mu.posttopublic !='no')
-JOIN misc ON (mc.id = misc.id AND misc.lifecyclestate <> 'deleted')
-LEFT OUTER JOIN hierarchy h1 ON (h1.id = mc.id)
-LEFT OUTER JOIN relations_common r on (h1.name = r.objectcsid)
-LEFT OUTER JOIN hierarchy h2 on (r.subjectcsid = h2.name)
-LEFT OUTER JOIN collectionobjects_common cc on (h2.id = cc.id)
-LEFT OUTER JOIN collectionobjects_ucjeps cop on (h2.id = cop.id)
+from media_common mc
+  join misc mmc on mc.id = mmc.id
 
-LEFT OUTER JOIN hierarchy hsdg
-        on (mc.id = hsdg.parentid and hsdg.name = 'media_common:dateGroupList' and hsdg.pos = 0)
--- nb: should be structureddategroup, but for some reason it isn't
-LEFT OUTER JOIN dategroup dg on (dg.id = hsdg.id)
+  -- get blobs
+  join hierarchy hbc on (
+    mc.blobcsid = hbc.name
+    and hbc.primarytype = 'Blob')
+  left outer join blobs_common bc on hbc.id = bc.id
 
-LEFT OUTER JOIN media_common_typelist mct on (mct.id = mc.id and mct.pos = 0)
-LEFT OUTER JOIN media_ucjeps_morphologycategories mum on (mum.id = mc.id and mum.pos = 0)
+  -- get collection objects
+  left outer join hierarchy hmc on mc.id = hmc.id
+  left outer join relations_common rc on (
+    hmc.name = rc.subjectcsid
+    and rc.subjectdocumenttype = 'Media'
+    and rc.objectdocumenttype = 'CollectionObject')
+  left outer join hierarchy hcc on rc.objectcsid = hcc.name
+  left outer join collectionobjects_common cc on hcc.id = cc.id
 
-LEFT OUTER JOIN taxon_common tc on (mu.scientifictaxonomy = tc.refname)
-LEFT OUTER JOIN taxon_ucjeps tu on (tu.id = tc.id)
-LEFT OUTER JOIN taxon_naturalhistory tnh on (tnh.id = tc.id)
-LEFT OUTER JOIN hierarchy hlg
-        on (mu.id = hlg.parentid and hlg.pos = 0
-        and hlg.name = 'media_ucjeps:localityGroupList')
-LEFT OUTER JOIN localitygroup lg on (lg.id = hlg.id)
+  -- get media date
+  left outer join hierarchy hdg on (
+    mc.id = hdg.parentid
+    and hdg.name = 'media_common:dateGroupList'
+    and hdg.pos = 0)
+  left outer join dategroup dg on hdg.id = dg.id
 
-JOIN hierarchy h3 ON (mc.blobcsid = h3.name)
-LEFT OUTER JOIN blobs_common b on (h3.id = b.id)
+  -- get media type
+  left outer join media_common_typelist mct on (
+    mc.id = mct.id
+    and mct.pos = 0)
 
-WHERE mct.item IN ('Digital Image','Slide (Photograph)');
+  -- get locality
+  left outer join hierarchy hlg on (
+    mc.id = hlg.parentid
+    and hlg.name = 'media_ucjeps:localityGroupList'
+    and hlg.pos = 0)
+  left outer join localitygroup lg on hlg.id = lg.id
+
+  left outer join media_ucjeps mu on (
+    mc.id = mu.id
+    and mu.posttopublic != 'no')
+
+  -- get morphology category
+  left outer join media_ucjeps_morphologycategories mum on (
+    mu.id = mum.id
+    and mum.pos = 0)
+
+  -- get taxonomy
+  left outer join taxon_common tc on mu.scientifictaxonomy = tc.refname
+  left outer join taxon_ucjeps tu on tc.id = tu.id
+  left outer join taxon_naturalhistory tnh on tc.id = tnh.id
+
+where mmc.lifecyclestate <> 'deleted'
+  and mct.item in ('Digital Image', 'Slide (Photograph)');

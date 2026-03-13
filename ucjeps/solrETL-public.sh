@@ -17,8 +17,9 @@ CONTACT="${UCJEPS_CONTACT}"
 cd ${HOME}/solrdatasources/${TENANT}
 ##############################################################################
 # extract and massage the metadata from CSpace
+# add -q option for new query which creates temp tables
 ##############################################################################
-time psql -F $'\t' -R"@@" -A -U $USERNAME -d "$CONNECTSTRING" -f ucjepsMetadata.sql -o d1.csv
+time psql -F $'\t' -R"@@" -A -U $USERNAME -d "$CONNECTSTRING" -q -f ucjepsMetadata.sql -o d1.csv
 time perl -pe 's/[\r\n]/ /g;s/\@\@/\n/g' d1.csv | perl -ne 'next if / rows/; print $_' > d3.csv
 ##############################################################################
 # count the types and tokens in the sql output, check cell counts
