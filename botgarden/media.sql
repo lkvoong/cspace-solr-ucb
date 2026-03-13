@@ -1,7 +1,9 @@
+----------------------------------------------------------------------------------------------------
 -- Revisions
 -- keep *_common to *_botgarden loj as there are a few records in *_common that are not in *_botgarden
 -- exclude deleted relations, collectionObjects, blobs
 -- currently, media to blob is 1:1, but keeping distinct CTE to handle deleted blobs
+----------------------------------------------------------------------------------------------------
 
 with objects_media as (
   select
