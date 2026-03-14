@@ -53,7 +53,7 @@ with objects as (
     lg.elevationunit as elevationUnit_s,
     lg.decimallatitude as latitude_f,
     lg.decimallongitude as longitude_f,
-    coalesce(lg.decimallatitude::text, '') || coalesce(',' || lg.decimallongitude::text, '') as latLong_p,
+    lg.decimallatitude || ',' || lg.decimallongitude as latLong_p,
     case when (lg.vcoordsys like 'Township%') then lg.vcoordinates end as trsCoordinates_s,
     lg.geodeticdatum as datum_s,
     lg.localitysource as coordinateSource_s,
