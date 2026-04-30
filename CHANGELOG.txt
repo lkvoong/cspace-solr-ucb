@@ -3,10 +3,20 @@ CHANGELOG for cspace-solr-ucb
 OK, it is not a *real* change log, but a list of changes resulting from git log
 sometimes with some human annotation after the fact.
 
-This is version 7.0.1
-Thu Jul 24 12:13:06 PDT 2025
+This is version 7.0.2-rc1
+Wed Apr 29 20:09:31 PDT 2026
 
-f9e6f8a (HEAD -> main, tag: 7.0.1-rc1, origin/main, origin/HEAD) revise CHANGELOG.txt and bump version to 7.0.1-rc1
+7d9e751 (HEAD -> main, origin/main, origin/HEAD) Merge pull request #17 from lkvoong/CSW-981bg
+02a0cbe CSW-981: remove coalesce from latlong_p in alive and dead Solr queries
+845306e CSW-981: Update botgarden alive and dead solr queries for performance
+c6ad8d5 Merge pull request #16 from lkvoong/CSW-982
+b1cb380 CSW-982: Update ucjeps solr queries for performance
+3f21825 Merge pull request #15 from lkvoong/CSW-980
+6b98df5 NOJIRA: restore botgarden files
+518a797 CSW-980: clean up public solr queries; change numberofobjects to objectcount
+ed32c8e CSW-972: update botgarden/cinefiles solr queries
+4901080 (tag: 7.0.1) revise CHANGELOG.txt and bump version to 7.0.1
+f9e6f8a (tag: 7.0.1-rc1) revise CHANGELOG.txt and bump version to 7.0.1-rc1
 31e961c Merge pull request #14 from lkvoong/CSW-966b
 4f866ba CSW-966: update mediaAllImages query to fix run failure and efficiency
 e5afc39 Merge pull request #13 from felder/main
