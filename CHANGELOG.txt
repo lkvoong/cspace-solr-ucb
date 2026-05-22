@@ -3,10 +3,13 @@ CHANGELOG for cspace-solr-ucb
 OK, it is not a *real* change log, but a list of changes resulting from git log
 sometimes with some human annotation after the fact.
 
-This is version 7.0.2
-Thu May  7 09:47:37 PDT 2026
+This is version 7.0.3-rc1
+Fri May 22 14:13:03 PDT 2026
 
-41d9299 (HEAD -> main, tag: 7.0.2-rc1, origin/main, origin/HEAD) revise CHANGELOG.txt and bump version to 7.0.2-rc1
+1a1b5dd (HEAD -> main, origin/main, origin/HEAD) Merge pull request #18 from lkvoong/CSW-998
+5f555f2 CSW-998: include legalstatus = 'UCBerkeley dispersed' to metadata_public and clean up query
+fa2d427 (tag: 7.0.2) revise CHANGELOG.txt and bump version to 7.0.2
+41d9299 (tag: 7.0.2-rc1) revise CHANGELOG.txt and bump version to 7.0.2-rc1
 7d9e751 Merge pull request #17 from lkvoong/CSW-981bg
 02a0cbe CSW-981: remove coalesce from latlong_p in alive and dead Solr queries
 845306e CSW-981: Update botgarden alive and dead solr queries for performance
