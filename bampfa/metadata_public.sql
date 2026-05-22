@@ -1,125 +1,166 @@
+with subjecttheme_rank as (
+  select 
+    id,
+    getdispl(item) as item,
+    row_number() over(partition by id order by pos) as pos_index
+  from collectionobjects_bampfa_subjectthemes
+),
+
+subjectthemes as (
+  select 
+    id,
+    max(case when pos_index = 1 THEN item end) AS SubjectOne,
+    max(case when pos_index = 2 THEN item end) AS SubjectTwo,
+    max(case when pos_index = 3 THEN item end) AS SubjectThree,
+    max(case when pos_index = 4 THEN item end) AS SubjectFour,
+    max(case when pos_index = 5 THEN item end) AS SubjectFive
+  from subjecttheme_rank
+  where pos_index <= 5
+  group by id
+)
+
 select
-   h1.name objectCSID,
-   co.objectnumber idNumber,
-   cb.sortableEffectiveObjectNumber sortObjectNumber,
-   con.numbervalue otherNumber,
-   utils.getdispl(cb.itemclass) itemclass,
-   case when (cb.artistdisplayoverride is null or cb.artistdisplayoverride='') then utils.concat_artists(h1.name)
-     else cb.artistdisplayoverride end as artistCalc,
---   getdispl(ba.bampfaobjectproductionperson) artist,
+   hcc.name as objectCSID,
+   cc.objectnumber as idNumber,
+   cb.sortableEffectiveObjectNumber as sortObjectNumber,
+   con.numbervalue as otherNumber,
+   getdispl(cb.itemclass) as itemclass,
+   coalesce(nullif(cb.artistdisplayoverride, ''), utils.concat_artists(hcc.name)) as artistCalc,
+   --   getdispl(opp.bampfaobjectproductionperson) as artist,
    case
-     when (pc.birthplace is null or pc.birthplace='') then pcn.item
-     when (pcn.item = pc.birthplace) then pcn.item
-     else pcn.item||', born '||pc.birthplace end
-   as artistorigin,
-   sdgpb.datedisplaydate artistbirthdate,
-   sdgpd.datedisplaydate artistdeathdate,
+     when nullif(pc.birthplace, '') is null then pcn.item
+     when pcn.item = pc.birthplace then pcn.item
+     else pcn.item || ', born '|| pc.birthplace end as artistorigin,
+   bdg.datedisplaydate as artistbirthdate,
+   ddg.datedisplaydate as artistdeathdate,
    pb.datesactive,
-   bt.bampfatitle title,
-   -- not included, for now
-   -- cb.initialvalue,
-   -- cv.currentvalue,
-   '-REDACTED-' as initialvalue,
-   '-REDACTED-' as currentvalue,
-   cv.currentvaluesource,
-   sdgcv.datedisplaydate currentvaluedate,
+   bt.bampfatitle as title,
+   '-REDACTED-' as initialvalue,  -- cb.initialvalue,
+   '-REDACTED-' as currentvalue,  -- cv.currentvalue,
+   cvg.currentvaluesource,
+   cvdg.datedisplaydate as currentvaluedate,
    cb.creditline,
-   case when (cb.creditline='' or cb.creditline is null)  then
-     'University of California, Berkeley Art Museum and Pacific Film Archive'
-     else 'University of California, Berkeley Art Museum and Pacific Film Archive; '||cb.creditline
-   end as fullBAMPFAcreditline,
-   case when (cb.permissiontoreproduce is null or cb.permissiontoreproduce='') then pb.permissiontoreproduce
-      else cb.permissiontoreproduce end as permissiontoreproduce,
-   case when (cb.copyrightCredit is null or cb.copyrightCredit='') then pb.copyrightCredit
-      else cb.copyrightCredit end as copyrightCredit,
+   'University of California, Berkeley Art Museum and Pacific Film Archive' || coalesce('; '|| cb.creditline, '') as fullBAMPFAcreditline,
+   coalesce(nullif(cb.permissiontoreproduce, ''), pb.permissiontoreproduce) as permissiontoreproduce,
+   coalesce(nullif(cb.copyrightCredit, ''), pb.copyrightCredit) as copyrightCredit,
    cb.photoCredit,
-   sdg.datedisplaydate dateMade,
-   replace(mp.dimensionsummary, '-', ' ') measurement,
-   co.physicaldescription materials,
-   sdgac.datedisplaydate dateacquired, -- in future will need case statements to get from intake
-   getdispl(cas.item) acquisitionsource,
+   sdg.datedisplaydate as dateMade,
+   replace(mpg.dimensionsummary, '-', ' ') as measurement,
+   cc.physicaldescription as materials,
+   adg.datedisplaydate as dateacquired, -- in future will need case statements to get from intake
+   getdispl(cbas.item) as acquisitionsource,
    cb.provenance,
-   sg.inscriptioncontent signature,
-   ccom.item notescomments,
-   cg.catalogername cataloger,
-   cg.catalognote catalognote,
+   tig.inscriptioncontent as signature,
+   ccc.item as notescomments,
+   cg.catalogername as cataloger,
+   cg.catalognote as catalognote,
    cg.catalogdate,
-   apg.assocplace site,
-   utils.getdispl(st1.item) SubjectOne,
-   utils.getdispl(st2.item) SubjectTwo,
-   utils.getdispl(st3.item) SubjectThree,
-   utils.getdispl(st4.item) SubjectFour,
-   utils.getdispl(st5.item) SubjectFive,
+   apg.assocplace as site,
+   st.SubjectOne,
+   st.SubjectTwo,
+   st.SubjectThree,
+   st.SubjectFour,
+   st.SubjectFive,
    -- these values are included here, but eliminated during the loading process
-   utils.getdispl(co.computedcurrentlocation) currentlocation,
-   utils.getdispl(cb.computedcrate) currentcrate,
-   TRIM(cb.objectProductionDateCentury || ' ' || regexp_replace(cb.objectProductionDateEra, '^.*\)''(.*)''$', '\1')) as century,
+   getdispl(cc.computedcurrentlocation) as currentlocation,
+   getdispl(cb.computedcrate) as currentcrate,
+   trim(cb.objectProductionDateCentury) || ' ' || getdispl(cb.objectProductionDateEra) as century,
    'not yet available' as grouptitle_ss,
    to_char(sdg.datelatestscalarvalue, 'YYYY-MM-DD') as dateMadeYear_dt
 from
-   hierarchy h1
-   INNER JOIN collectionobjects_common co
-      ON (h1.id = co.id AND h1.primarytype = 'CollectionObjectTenant55')
-   INNER JOIN misc m
-      ON (co.id = m.id AND m.lifecyclestate <> 'deleted')
-   INNER JOIN collectionobjects_bampfa cb
-      ON (co.id = cb.id)
-   INNER JOIN collectionspace_core core on co.id=core.id
-   LEFT OUTER JOIN hierarchy h2
-      ON (h2.parentid = co.id AND h2.name='collectionobjects_common:objectProductionDateGroupList' and h2.pos=0)
-   LEFT OUTER JOIN structuredDateGroup sdg ON (h2.id = sdg.id)
-   LEFT OUTER JOIN hierarchy h3
-      ON (h3.parentid = co.id AND h3.name = 'collectionobjects_common:otherNumberList' and h3.pos=0)
-   LEFT OUTER JOIN othernumber con
-      ON (h3.id = con.id)
-   LEFT OUTER JOIN hierarchy h4
-      ON (h4.parentid = co.id AND h4.name = 'collectionobjects_bampfa:bampfaTitleGroupList' and h4.pos=0)
-   LEFT OUTER JOIN bampfatitlegroup bt
-      ON (h4.id = bt.id)
-   LEFT OUTER JOIN hierarchy h5
-      ON (h5.parentid = co.id AND h5.name = 'collectionobjects_bampfa:currentValueGroupList' and h5.pos=0)
-   LEFT OUTER JOIN currentvaluegroup cv
-      ON (h5.id = cv.id)
-   LEFT OUTER JOIN hierarchy h6
-      ON (h6.parentid = cv.id AND h6.name='currentValueDateGroup')
-   LEFT OUTER JOIN structuredDateGroup sdgcv ON (h6.id = sdgcv.id)
-   LEFT OUTER JOIN hierarchy h7
-      ON (h7.parentid = co.id AND h7.name = 'collectionobjects_common:measuredPartGroupList' and h7.pos=0)
-   LEFT OUTER JOIN measuredpartgroup mp
-      ON (h7.id = mp.id)
-   LEFT OUTER JOIN hierarchy h8
-      ON (h8.parentid = co.id AND h8.name = 'collectionobjects_common:textualInscriptionGroupList' and h8.pos=0)
-   LEFT OUTER JOIN textualinscriptiongroup sg
-      ON (h8.id = sg.id)
-   LEFT OUTER JOIN hierarchy h9
-      ON (h9.parentid = co.id AND h9.name='collectionobjects_bampfa:acquisitionDateGroupList' and h9.pos=0)
-   LEFT OUTER JOIN structuredDateGroup sdgac ON (h9.id = sdgac.id)
-   LEFT OUTER JOIN collectionobjects_bampfa_acquisitionsources cas on (co.id=cas.id and cas.pos=0)
-   LEFT OUTER JOIN collectionobjects_common_comments ccom on (co.id=ccom.id and ccom.pos=0)
-   LEFT OUTER JOIN hierarchy h10
-      ON (h10.parentid = co.id AND h10.name = 'collectionobjects_bampfa:catalogerGroupList' and h10.pos=0)
-   LEFT OUTER JOIN catalogergroup cg
-      ON (h10.id = cg.id)
-   LEFT OUTER JOIN hierarchy h11
-      ON (h11.parentid = co.id AND h11.name = 'collectionobjects_bampfa:bampfaObjectProductionPersonGroupList' and h11.pos=0)
-   LEFT OUTER JOIN bampfaobjectproductionpersongroup ba
-      ON (h11.id = ba.id)
-   LEFT OUTER JOIN persons_common pc on (ba.bampfaobjectproductionperson=pc.refname)
-   LEFT OUTER JOIN persons_common_nationalities pcn on (pc.id=pcn.id and pcn.pos=0)
-   LEFT OUTER JOIN hierarchy h12
-      ON (h12.parentid = pc.id AND h12.name='persons_common:birthDateGroup')
-   LEFT OUTER JOIN structuredDateGroup sdgpb ON (h12.id = sdgpb.id)
-   LEFT OUTER JOIN hierarchy h13
-      ON (h13.parentid = pc.id AND h13.name='persons_common:deathDateGroup')
-   LEFT OUTER JOIN structuredDateGroup sdgpd ON (h13.id = sdgpd.id)
-   LEFT OUTER JOIN persons_bampfa pb on (pc.id=pb.id)
-   LEFT OUTER JOIN hierarchy h14
-      ON (h14.parentid = co.id AND h14.name = 'collectionobjects_common:assocPlaceGroupList' and h14.pos=0)
-   LEFT OUTER JOIN assocplacegroup apg
-      ON (h14.id = apg.id)
-   LEFT OUTER JOIN collectionobjects_bampfa_subjectthemes st1 ON (st1.id=co.id and st1.pos=0)
-   LEFT OUTER JOIN collectionobjects_bampfa_subjectthemes st2 ON (st2.id=co.id and st2.pos=1)
-   LEFT OUTER JOIN collectionobjects_bampfa_subjectthemes st3 ON (st3.id=co.id and st3.pos=2)
-   LEFT OUTER JOIN collectionobjects_bampfa_subjectthemes st4 ON (st4.id=co.id and st4.pos=3)
-   LEFT OUTER JOIN collectionobjects_bampfa_subjectthemes st5 ON (st5.id=co.id and st5.pos=4)
-WHERE utils.getdispl(cb.legalstatus) in ('permanent collection', 'extended loan')
+   hierarchy hcc
+   JOIN collectionobjects_common cc on (hcc.id = cc.id)
+   JOIN misc m on (cc.id = m.id and m.lifecyclestate <> 'deleted')
+   JOIN collectionobjects_bampfa cb on (cc.id = cb.id)
+
+   left outer join hierarchy h2 on (
+      h2.parentid = cc.id 
+      and h2.name = 'collectionobjects_common:objectProductionDateGroupList'
+      and h2.pos = 0)
+   left outer join structuredDateGroup sdg on (h2.id = sdg.id)
+
+   left outer join hierarchy hcon on (
+      hcon.parentid = cc.id
+      and hcon.name = 'collectionobjects_common:otherNumberList'
+      and hcon.pos = 0)
+   left outer join othernumber con on (hcon.id = con.id)
+
+   left outer join hierarchy hbt on (
+      hbt.parentid = cc.id
+      and hbt.name = 'collectionobjects_bampfa:bampfaTitleGroupList'
+      and hbt.pos = 0)
+   left outer join bampfatitlegroup bt on (hbt.id = bt.id)
+
+   left outer join hierarchy hcvg
+      on (hcvg.parentid = cc.id
+      and hcvg.name = 'collectionobjects_bampfa:currentValueGroupList'
+      and hcvg.pos = 0)
+   left outer join currentvaluegroup cvg on (hcvg.id = cvg.id)
+
+   left outer join hierarchy hcvdg
+      on (hcvdg.parentid = cvg.id
+      and hcvdg.name = 'currentValueDateGroup')
+   left outer join structuredDateGroup cvdg on (hcvdg.id = cvdg.id)
+
+   left outer join hierarchy hmpg
+      on (hmpg.parentid = cc.id
+      and hmpg.name = 'collectionobjects_common:measuredPartGroupList'
+      and hmpg.pos = 0)
+   left outer join measuredpartgroup mpg on (hmpg.id = mpg.id)
+
+   left outer join hierarchy htig
+      on (htig.parentid = cc.id
+      and htig.name = 'collectionobjects_common:textualInscriptionGroupList'
+      and htig.pos = 0)
+   left outer join textualinscriptiongroup tig on (htig.id = tig.id)
+
+   left outer join hierarchy hadg
+      on (hadg.parentid = cc.id
+      and hadg.name = 'collectionobjects_bampfa:acquisitionDateGroupList'
+      and hadg.pos = 0)
+   left outer join structuredDateGroup adg on (hadg.id = adg.id)
+
+   left outer join collectionobjects_bampfa_acquisitionsources cbas on (
+      cc.id = cbas.id
+      and cbas.pos = 0)
+
+   left outer join collectionobjects_common_comments ccc on (
+      cc.id = ccc.id
+      and ccc.pos = 0)
+
+   left outer join hierarchy hcg
+      on (hcg.parentid = cc.id
+      and hcg.name = 'collectionobjects_bampfa:catalogerGroupList'
+      and hcg.pos = 0)
+   left outer join catalogergroup cg on (hcg.id = cg.id)
+
+   left outer join hierarchy hopp
+      on (hopp.parentid = cc.id
+      and hopp.name = 'collectionobjects_bampfa:bampfaObjectProductionPersonGroupList'
+      and hopp.pos = 0)
+   left outer join bampfaobjectproductionpersongroup opp on (hopp.id = opp.id)
+   left outer join persons_common pc on (opp.bampfaobjectproductionperson = pc.refname)
+   left outer join persons_common_nationalities pcn on (
+      pc.id = pcn.id
+      and pcn.pos = 0)
+   left outer join persons_bampfa pb on (pc.id = pb.id)
+
+   left outer join hierarchy hbdg
+      on (hbdg.parentid = pc.id
+      and hbdg.name = 'persons_common:birthDateGroup')
+   left outer join structuredDateGroup bdg on (hbdg.id = bdg.id)
+
+   left outer join hierarchy hddg
+      on (hddg.parentid = pc.id
+      and hddg.name = 'persons_common:deathDateGroup')
+   left outer join structuredDateGroup ddg on (hddg.id = ddg.id)
+
+   left outer join hierarchy hapg
+      on (hapg.parentid = cc.id
+      and hapg.name = 'collectionobjects_common:assocPlaceGroupList'
+      and hapg.pos = 0)
+   left outer join assocplacegroup apg on (hapg.id = apg.id)
+
+   left outer join subjectthemes st on (cc.id = st.id)
+
+where getdispl(cb.legalstatus) in ('permanent collection', 'extended loan', 'UCBerkeley dispersed')
