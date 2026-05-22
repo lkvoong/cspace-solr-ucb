@@ -96,6 +96,6 @@ from
    LEFT OUTER JOIN collectionobjects_common_styles ps3 ON (ps3.id=co.id and ps3.pos=2)
    LEFT OUTER JOIN collectionobjects_common_styles ps4 ON (ps4.id=co.id and ps4.pos=3)
    LEFT OUTER JOIN collectionobjects_common_styles ps5 ON (ps5.id=co.id and ps5.pos=4)
-where utils.getdispl(cb.legalstatus) in ('permanent collection', 'extended loan')
+where utils.getdispl(cb.legalstatus) in ('permanent collection', 'extended loan', 'UCBerkeley dispersed')
 order by cb.sortableEffectiveObjectNumber
 ;
