@@ -42,10 +42,11 @@ wait
 ##############################################################################
 # temporary hack to parse Locality into County/State/Country
 ##############################################################################
-# 1. recover yesterday's version of these 3 files
-cp ${SOLR_CACHE_DIR}/county.csv .
-cp ${SOLR_CACHE_DIR}/state.csv .
-cp ${SOLR_CACHE_DIR}/country.csv .
+# 1. recover latest version of these 3 files, which were zipped via the previous run of one_job.sh
+gunzip -c ${SOLR_CACHE_DIR}/county.csv.gz > county.csv
+gunzip -c ${SOLR_CACHE_DIR}/state.csv.gz > state.csv
+gunzip -c ${SOLR_CACHE_DIR}/country.csv.gz > country.csv
+
 # parse the extracted field, insert into metadata
 perl fixLocalites.pl d5.csv > metadata.csv
 # 3. we need to regenerate and save these 3 files for the next run...
