@@ -2,7 +2,7 @@
  *  View used to get live data in support of several functions, including Inject Metadata
  *  CRH 10/22/2014
  *  CRH 10/27/2014 Measurements subst hyphen with space. Utils schema.
- *  CRH 11/25/2014 Added artistDisplayOverride
+ *  CRH 11/25/2014 Added artistdisplayoverride
  *  CRH 04/25/2015 Added several fields; see Jira BAMPFA-402
  *  CRH 07/30/2015 Added Acquisition Method BAMPFA-446
  *  LKV 09/28/2016 BAMPFA-507: Add call to new function utils.get_first_blobcsid_displevel to
@@ -13,35 +13,35 @@
       update query to match metadata_public.sql
       remove extraneous join to collectionspace_core
       NOTE: site data source is different from Solr metadata queries, ie objectproductionplace vs assocplace
- *  LKV 11/06/2026 CSW-1033: re-write to remove utils.get_object_image_count and utils.get_first_blobcsid_displevel
+ *  LKV 11/06/2026 CSW-1033:
+      re-write to remove get_object_image_count, get_first_blobcsid_displevel, concat_artists
+      add exclusions for deleted relations, blobs, persons
 */
 
--- DROP VIEW utils.bampfa_collectionitems_vw
+DROP VIEW utils.bampfa_collectionitems_vw;
 
-CREATE OR REPLACE VIEW utils.bampfa_collectionitems_vw AS
+CREATE VIEW utils.bampfa_collectionitems_vw AS
 WITH collectionobjects AS (
   SELECT
     cc.id,
     hcc.name AS objectcsid,
     cc.objectnumber AS idnumber,
     cb.sortableeffectiveobjectnumber AS sortobjectnumber,
-    GETDISPL(cb.itemclass) AS itemclass,
-    NULLIF(cb.artistdisplayoverride, '') AS artistdisplayoverride,
+    cb.itemclass,
+    cb.artistdisplayoverride,
     cb.initialvalue,
     cb.creditline,
-    'University of California, Berkeley Art Museum and Pacific Film Archive'
-      || COALESCE('; '|| cb.creditline, '') AS fullbampfacreditLine,
-    NULLIF(cb.permissiontoreproduce, '') AS permissiontoreproduce,
-    NULLIF(cb.copyrightCredit, '') AS copyrightcredit,
+    cb.permissiontoreproduce,
+    cb.copyrightcredit,
     cb.photocredit,
     cc.physicaldescription AS materials,
-    GETDISPL(cbas.item) AS acquisitionsource,
+    cbas.item AS acquisitionsource,
     cb.provenance,
-    TRIM(REGEXP_REPLACE(ccc.item, '[[:space:]]+', ' ', 'g')) AS notescomments,    -- replace CRLF w/space then trim
-    GETDISPL(cc.computedcurrentlocation) AS currentlocation,
-    GETDISPL(cb.computedcrate) AS currentcrate,
-    GETDISPL(cb.legalstatus) AS legalstatus,
-    GETDISPL(cb.acquisitionmethod) AS acquisitionmethod
+    ccc.item AS notescomments,
+    cc.computedcurrentlocation,
+    cb.computedcrate,
+    cb.legalstatus,
+    cb.acquisitionmethod
   FROM collectionobjects_common cc
     JOIN hierarchy hcc ON cc.id = hcc.id
     JOIN misc mcc ON cc.id = mcc.id
@@ -57,8 +57,24 @@ WITH collectionobjects AS (
 
 artists AS (
   SELECT
-    coa.id AS objectid,
-    COALESCE(coa.artistdisplayoverride, UTILS.CONCAT_ARTISTS(coa.objectcsid)) AS artistcalc,
+    hppg.parentid AS objectid,
+    STRING_AGG(
+      GETDISPL(ppg.bampfaobjectproductionperson) ||
+      COALESCE(' (' || NULLIF(GETDISPL(ppg.bampfaobjectproductionpersonqualifier), '') || ')', ''),
+      '; ' ORDER BY hppg.pos) AS artistcalc
+  FROM hierarchy hppg	-- get all artists
+  JOIN bampfaobjectproductionpersongroup ppg ON hppg.id = ppg.id
+  JOIN persons_common pc ON ppg.bampfaobjectproductionperson = pc.refname
+  JOIN misc mpc ON pc.id = mpc.id
+  WHERE mpc.lifecyclestate <> 'deleted'	-- exclude deleted artists
+    AND hppg.name = 'collectionobjects_bampfa:bampfaObjectProductionPersonGroupList'
+    AND ppg.bampfaobjectproductionperson IS NOT NULL	-- exclude null artists
+  GROUP by hppg.parentid
+),
+
+firstartists AS (
+  SELECT
+    hppg.parentid AS objectid,
     CASE
       WHEN NULLIF(pc.birthplace, '') IS NULL THEN pcn.item
       WHEN pcn.item = pc.birthplace THEN pcn.item
@@ -66,15 +82,12 @@ artists AS (
     bdg.datedisplaydate AS artistbirthdate,
     ddg.datedisplaydate AS artistdeathdate,
     pb.datesactive,
-    COALESCE(coa.permissiontoreproduce, pb.permissiontoreproduce) AS permissiontoreproduce,
-    COALESCE(coa.copyrightCredit, pb.copyrightCredit) AS copyrightcredit
-  FROM collectionobjects coa
-    JOIN hierarchy hppg        -- get first artist
-      ON coa.id = hppg.parentid
-      AND hppg.name = 'collectionobjects_bampfa:bampfaObjectProductionPersonGroupList'
-      AND hppg.pos = 0
-    LEFT OUTER JOIN bampfaobjectproductionpersongroup ppg ON hppg.id = ppg.id
-    LEFT OUTER JOIN persons_common pc ON ppg.bampfaobjectproductionperson = pc.refname
+    pb.permissiontoreproduce AS permissiontoreproduceartist,
+    pb.copyrightcredit AS copyrightcreditartist
+  FROM hierarchy hppg        -- get first artist
+    JOIN bampfaobjectproductionpersongroup ppg ON hppg.id = ppg.id
+    JOIN persons_common pc ON ppg.bampfaobjectproductionperson = pc.refname
+    JOIN misc mpc ON pc.id = mpc.id
     LEFT OUTER JOIN persons_common_nationalities pcn      -- get first nationality of first artist
       ON pc.id = pcn.id
       AND pcn.pos = 0
@@ -87,6 +100,9 @@ artists AS (
       ON pc.id = hddg.parentid
       AND hddg.name = 'persons_common:deathDateGroup'
     LEFT OUTER JOIN structuredDateGroup ddg ON hddg.id = ddg.id
+  WHERE mpc.lifecyclestate <> 'deleted'	-- exclude deleted persons
+    AND hppg.name = 'collectionobjects_bampfa:bampfaObjectProductionPersonGroupList'
+    AND hppg.pos = 0
 ),
 
 subjectthemes AS (	-- get first five subjectthemes
@@ -126,40 +142,50 @@ periodstyles AS (	-- get first 5 periodstyles
   GROUP BY id
 ),
 
-objectimages AS (
+objectmedia AS (	-- get all object media
   SELECT
-    count(*) AS imagecount,
-    rc.objectcsid
-  FROM relations_common rc
-   JOIN hierarchy hmc ON rc.subjectcsid = hmc.name
-   JOIN media_common mc ON hmc.id = mc.id
-   JOIN misc mmc ON mc.id = mmc.id
+    co.objectcsid,
+    mc.id as mediaid,
+    mc.blobcsid
+  FROM collectionobjects co
+    JOIN relations_common rc ON co.objectcsid = rc.objectcsid
+    JOIN misc mrc ON rc.id = mrc.id
+    JOIN hierarchy hmc ON rc.subjectcsid = hmc.name
+    JOIN media_common mc ON hmc.id = mc.id
+    JOIN misc mmc ON mc.id = mmc.id
+    JOIN hierarchy hbc ON mc.blobcsid = hbc.name
+    JOIN misc mbc ON hbc.id = mbc.id
   WHERE rc.objectdocumenttype = 'CollectionObject'
     AND rc.subjectdocumenttype = 'Media'
-    AND mmc.lifecyclestate <> 'deleted'
-  GROUP BY rc.objectcsid
+    AND mrc.lifecyclestate <> 'deleted'       -- exclude deleted relations
+    AND mmc.lifecyclestate <> 'deleted'       -- exclude deleted media
+    AND mbc.lifecyclestate <> 'deleted'       -- exclude deleted blobs
 ),
 
--- some objects have more than one media records with imagenumber = 1
+objectmediacounts AS (	-- get count of all non-deleted media by objectcsid
+  SELECT
+    objectcsid,
+    COUNT(*) AS imagecount
+  FROM objectmedia
+  GROUP BY objectcsid
+),
+
+-- some objects have > 1 media records with imagenumber = 1
+-- some objects have media records, and none have imagenumber = 1
 -- media_common.datemodified and media_common.datecreated are all null
 -- therefore, must use collectionspace_core.updatedat for media records
 -- to get most recent media record with imagenumber = 1
-objectimageblobs AS (
-  SELECT DISTINCT ON (rc.objectcsid)
-    rc.objectcsid,
-    mc.blobcsid AS image1blobcsid,
-    mb.websitedisplaylevel AS image1DispLevel
-  FROM relations_common rc
-   JOIN hierarchy hmc ON rc.subjectcsid = hmc.name
-   JOIN media_common mc ON hmc.id = mc.id
-   JOIN misc mmc ON mc.id = mmc.id
-   JOIN media_bampfa mb ON mc.id = mb.id
-   JOIN collectionspace_core cc on mc.id = cc.id
-  WHERE rc.objectdocumenttype = 'CollectionObject'
-    AND rc.subjectdocumenttype = 'Media'
-    AND mmc.lifecyclestate <> 'deleted'
-    AND mb.imagenumber = '1'
-  ORDER BY rc.objectcsid, cc.updatedat DESC
+
+image1 AS (
+  SELECT DISTINCT ON (om.objectcsid)
+    om.objectcsid,
+    om.blobcsid AS image1blobcsid,
+    mb.websitedisplaylevel AS image1displevel
+  FROM objectmedia om
+  JOIN media_bampfa mb on om.mediaid = mb.id
+  JOIN collectionspace_core csc ON om.mediaid = csc.id
+  WHERE mb.imagenumber = 1
+  ORDER BY om.objectcsid, csc.updatedat DESC, om.blobcsid DESC	-- order by updatedat and blobcsid for tiebreaker
 )
 
 SELECT
@@ -167,30 +193,31 @@ SELECT
   co.idnumber,
   co.sortobjectnumber,
   con.numbervalue AS othernumber,
-  co.itemclass,
-  a.artistcalc,
-  a.artistorigin,
-  a.artistbirthdate,
-  a.artistdeathdate,
-  a.datesactive,
+  GETDISPL(co.itemclass) AS itemclass,
+  COALESCE(NULLIF(co.artistdisplayoverride, ''), a.artistcalc) as artistcalc,
+  fa.artistorigin,
+  fa.artistbirthdate,
+  fa.artistdeathdate,
+  fa.datesactive,
   btg.bampfatitle AS title,
   co.initialvalue,
   cvg.currentvalue,
   cvg.currentvaluesource,
   cvdg.datedisplaydate AS currentvaluedate,
   co.creditline,
-  co.fullbampfacreditline,
-  a.permissiontoreproduce,
-  a.copyrightcredit,
+  'University of California, Berkeley Art Museum and Pacific Film Archive'
+    || COALESCE('; '|| co.creditline, '') AS fullbampfacreditline,
+  COALESCE(NULLIF(co.permissiontoreproduce, ''), fa.permissiontoreproduceartist) AS permissiontoreproduce,
+  COALESCE(NULLIF(co.copyrightcredit, ''), fa.copyrightcreditartist) AS copyrightcredit,
   co.photocredit,
   pdg.datedisplaydate AS datemade,
   REPLACE(mpg.dimensionsummary, '-', ' ') AS measurement,
   co.materials,
   adg.datedisplaydate AS dateacquired,	-- in future will need case statements to get from intake
-  co.acquisitionsource,
+  GETDISPL(co.acquisitionsource) AS acquisitionsource,
   co.provenance,
   tig.inscriptioncontent AS signature,
-  co.notescomments,
+  TRIM(REGEXP_REPLACE(co.notescomments, '[[:space:]]+', ' ', 'g')) AS notescomments,	-- replace CRLF w/space
   cg.catalogername AS cataloger,
   cg.catalognote AS catalognote,
   cg.catalogdate,
@@ -200,8 +227,8 @@ SELECT
   st.subjectthree,
   st.subjectfour,
   st.subjectfive,
-  co.currentlocation,
-  co.currentcrate,
+  GETDISPL(co.computedcurrentlocation) AS currentlocation,
+  GETDISPL(co.computedcrate) AS currentcrate,
   c.collection1,
   c.collection2,
   c.collection3,
@@ -210,11 +237,11 @@ SELECT
   ps.periodstyle3,
   ps.periodstyle4,
   ps.periodstyle5,
-  co.legalstatus,
-  COALESCE(oi.imagecount, 0) as imagecount,
-  oib.image1blobcsid,
-  oib.image1displevel,
-  co.acquisitionmethod
+  GETDISPL(co.legalstatus) AS legalstatus,
+  COALESCE(omc.imagecount, 0) as imagecount,
+  i1.image1blobcsid,
+  i1.image1displevel,
+  GETDISPL(co.acquisitionmethod) AS acquisitionmethod
 
 FROM collectionobjects co
   LEFT OUTER JOIN hierarchy hcon	-- get first other number
@@ -222,7 +249,8 @@ FROM collectionobjects co
     AND hcon.name = 'collectionobjects_common:otherNumberList'
     AND hcon.pos = 0
   LEFT OUTER JOIN othernumber con ON hcon.id = con.id
-  LEFT OUTER JOIN artists a ON co.id = a.objectid	-- get calculated artist and first artist data
+  LEFT OUTER JOIN artists a ON co.id = a.objectid	-- calculate artist
+  LEFT OUTER JOIN firstartists fa ON co.id = fa.objectid	-- get first artist data
   LEFT OUTER JOIN hierarchy hbtg	-- get first title
     ON co.id = hbtg.parentid
     AND hbtg.name = 'collectionobjects_bampfa:bampfaTitleGroupList'
@@ -270,9 +298,9 @@ FROM collectionobjects co
   LEFT OUTER JOIN subjectthemes st ON co.id = st.id	-- get subjects
   LEFT OUTER JOIN collections c ON co.id = c.id	-- get collections
   LEFT OUTER JOIN periodstyles ps ON co.id = ps.id	-- get periodstyles
-  LEFT OUTER JOIN objectimages oi ON co.objectcsid = oi.objectcsid	-- get image count
-  LEFT OUTER JOIN objectimageblobs oib ON co.objectcsid = oib.objectcsid	-- get image blobcsid, displevel
-ORDER BY co.sortobjectnumber;
+  LEFT OUTER JOIN objectmediacounts omc ON co.objectcsid = omc.objectcsid	-- get image count
+  LEFT OUTER JOIN image1 i1 ON co.objectcsid = i1.objectcsid	-- get blobcsid, displevel for imagenumber 1
+  ORDER BY co.sortobjectnumber;
 
 GRANT SELECT ON utils.bampfa_collectionitems_vw TO reader_bampfa;
 GRANT SELECT ON utils.bampfa_collectionitems_vw TO group reporters_bampfa;
